@@ -1,0 +1,12 @@
+{
+  "include": [
+    "src",
+    "generated"
+  ],
+  "extraPaths": [
+    "src",
+    "generated"
+  ],
+  "venvPath": ".",
+  "venv": ".venv"
+}

@@ -235,7 +235,11 @@ class SemanticAnalyzer(JSSParserVisitor):
         if ctx.VOID() is not None:
             return VOID
 
-        return self.type_from_type_ctx(ctx.type_())
+        return_type = self.type_from_type_ctx(ctx.type_())
+        if return_type.is_array:
+            self.error(ctx, "funcao ou metodo nao pode retornar vetor.")
+
+        return return_type
 
     def params_from_parameter_list(self, parameter_list_ctx) -> list[tuple[str, JssType]]:
         params: list[tuple[str, JssType]] = []

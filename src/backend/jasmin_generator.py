@@ -249,7 +249,7 @@ class JasminGenerator(JSSParserVisitor):
         self.emit_main_class_header()
         self.emit_main_fields()
         self.emit_main_constructor()
-        self.emit_static_initializer()
+        self.emit_static_initializer(tree)
         self.emit_functions(tree)
 
         self.writer.save(output_path)
@@ -424,11 +424,11 @@ class JasminGenerator(JSSParserVisitor):
     def emit_constructor(self):
         self.emit_main_constructor()
 
-    def emit_static_initializer(self):
+    def emit_static_initializer(self, program_ctx):
         self.writer.emit(".method static <clinit>()V")
         self.writer.indent()
         self.writer.emit(".limit stack 300")
-        self.writer.emit(".limit locals 20")
+        self.writer.emit(".limit locals 300")
 
         # Inicializa o Scanner: __scanner = new Scanner(System.in).useLocale(Locale.US)
         self.writer.emit("new java/util/Scanner")
@@ -475,6 +475,18 @@ class JasminGenerator(JSSParserVisitor):
 
             self.emit_store_var(var)
 
+        # Comandos soltos no nível superior (fora de qualquer função) rodam aqui,
+        # sempre antes de qualquer método (inclusive main), tanto sintetizado
+        # quanto declarado pelo usuário no programa JSS.
+        self.current_method = MethodContext("<clinit>", "void", start_slot=0)
+
+        for top in program_ctx.topLevelDeclaration():
+            stmt_ctx = top.statement()
+            if stmt_ctx is not None and stmt_ctx.variableDeclaration() is None:
+                self.gen_statement(stmt_ctx)
+
+        self.current_method = None
+
         self.writer.emit("return")
         self.writer.dedent()
         self.writer.emit(".end method")
@@ -496,27 +508,10 @@ class JasminGenerator(JSSParserVisitor):
                     self.emit_function(func_ctx)
 
         if not found_main:
-            self.emit_top_level_main(program_ctx)
-
-    def emit_top_level_main(self, program_ctx):
-        self.current_method = MethodContext("main", "void", start_slot=1)
-
-        self.writer.emit(".method public static main([Ljava/lang/String;)V")
-        self.writer.indent()
-        self.writer.emit(".limit stack 300")
-        self.writer.emit(".limit locals 300")
-
-        for top in program_ctx.topLevelDeclaration():
-            stmt_ctx = top.statement()
-            if stmt_ctx is not None and stmt_ctx.variableDeclaration() is None:
-                self.gen_statement(stmt_ctx)
-
-        self.writer.emit("return")
-        self.writer.dedent()
-        self.writer.emit(".end method")
-        self.writer.emit()
-
-        self.current_method = None
+            # Comandos soltos no nível superior já rodam em <clinit>
+            # (ver emit_static_initializer); aqui só falta o ponto de
+            # entrada Java exigido pela JVM.
+            self.emit_empty_main()
 
     def emit_empty_main(self):
         self.writer.emit(".method public static main([Ljava/lang/String;)V")

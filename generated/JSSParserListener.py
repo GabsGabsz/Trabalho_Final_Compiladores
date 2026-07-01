@@ -260,6 +260,33 @@ class JSSParserListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by JSSParser#forCondition.
+    def enterForCondition(self, ctx:JSSParser.ForConditionContext):
+        pass
+
+    # Exit a parse tree produced by JSSParser#forCondition.
+    def exitForCondition(self, ctx:JSSParser.ForConditionContext):
+        pass
+
+
+    # Enter a parse tree produced by JSSParser#forUpdate.
+    def enterForUpdate(self, ctx:JSSParser.ForUpdateContext):
+        pass
+
+    # Exit a parse tree produced by JSSParser#forUpdate.
+    def exitForUpdate(self, ctx:JSSParser.ForUpdateContext):
+        pass
+
+
+    # Enter a parse tree produced by JSSParser#expressionList.
+    def enterExpressionList(self, ctx:JSSParser.ExpressionListContext):
+        pass
+
+    # Exit a parse tree produced by JSSParser#expressionList.
+    def exitExpressionList(self, ctx:JSSParser.ExpressionListContext):
+        pass
+
+
     # Enter a parse tree produced by JSSParser#breakStatement.
     def enterBreakStatement(self, ctx:JSSParser.BreakStatementContext):
         pass

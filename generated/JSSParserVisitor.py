@@ -149,6 +149,21 @@ class JSSParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by JSSParser#forCondition.
+    def visitForCondition(self, ctx:JSSParser.ForConditionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by JSSParser#forUpdate.
+    def visitForUpdate(self, ctx:JSSParser.ForUpdateContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by JSSParser#expressionList.
+    def visitExpressionList(self, ctx:JSSParser.ExpressionListContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by JSSParser#breakStatement.
     def visitBreakStatement(self, ctx:JSSParser.BreakStatementContext):
         return self.visitChildren(ctx)

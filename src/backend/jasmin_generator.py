@@ -859,23 +859,25 @@ class JasminGenerator(JSSParserVisitor):
         if ctx.forInit() is not None:
             if ctx.forInit().variableDeclaration() is not None:
                 self.gen_variable_declaration(ctx.forInit().variableDeclaration())
-            elif ctx.forInit().expression() is not None:
-                result_type = self.gen_expression(ctx.forInit().expression())
-                self.emit_pop_if_needed(result_type)
+            elif ctx.forInit().expressionList() is not None:
+                for init_ctx in ctx.forInit().expressionList().expression():
+                    result_type = self.gen_expression(init_ctx)
+                    self.emit_pop_if_needed(result_type)
 
         self.writer.emit_label(start_label)
 
-        if ctx.expression(0) is not None:
-            self.gen_expression(ctx.expression(0))
+        if ctx.forCondition() is not None:
+            self.gen_expression(ctx.forCondition().expression())
             self.writer.emit(f"ifeq {end_label}")
 
         self.current_method.break_labels.append(end_label)
         self.gen_block(ctx.block())
         self.current_method.break_labels.pop()
 
-        if ctx.expression(1) is not None:
-            result_type = self.gen_expression(ctx.expression(1))
-            self.emit_pop_if_needed(result_type)
+        if ctx.forUpdate() is not None:
+            for update_ctx in ctx.forUpdate().expressionList().expression():
+                result_type = self.gen_expression(update_ctx)
+                self.emit_pop_if_needed(result_type)
 
         self.writer.emit(f"goto {start_label}")
         self.writer.emit_label(end_label)

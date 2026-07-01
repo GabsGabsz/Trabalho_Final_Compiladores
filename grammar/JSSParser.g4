@@ -154,12 +154,24 @@ whileStatement
     ;
 
 forStatement
-    : FOR LPAREN forInit? SEMI expression? SEMI expression? RPAREN block
+    : FOR LPAREN forInit? SEMI forCondition? SEMI forUpdate? RPAREN block
     ;
 
 forInit
     : variableDeclaration
-    | expression
+    | expressionList
+    ;
+
+forCondition
+    : expression
+    ;
+
+forUpdate
+    : expressionList
+    ;
+
+expressionList
+    : expression (COMMA expression)*
     ;
 
 breakStatement

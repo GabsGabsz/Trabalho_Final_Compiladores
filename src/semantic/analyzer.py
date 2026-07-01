@@ -235,6 +235,9 @@ class SemanticAnalyzer(JSSParserVisitor):
         if ctx.VOID() is not None:
             return VOID
 
+        # A especificacao (secao 4.4) proibe retorno de vetor; o proprio
+        # tests/prof/6_functions.jss, que declara "function int[5] ...",
+        # e um teste negativo e deve falhar aqui.
         return_type = self.type_from_type_ctx(ctx.type_())
         if return_type.is_array:
             self.error(ctx, "funcao ou metodo nao pode retornar vetor.")
@@ -520,13 +523,15 @@ class SemanticAnalyzer(JSSParserVisitor):
         if ctx.forInit() is not None:
             self.visit(ctx.forInit())
 
-        if ctx.expression(0) is not None:
-            condition_type = self.expression_info(ctx.expression(0)).type
+        if ctx.forCondition() is not None:
+            condition_ctx = ctx.forCondition().expression()
+            condition_type = self.expression_info(condition_ctx).type
             if condition_type != BOOL:
-                self.error(ctx.expression(0), "condicao do for deve ser do tipo bool.")
+                self.error(condition_ctx, "condicao do for deve ser do tipo bool.")
 
-        if ctx.expression(1) is not None:
-            self.expression_info(ctx.expression(1))
+        if ctx.forUpdate() is not None:
+            for update_ctx in ctx.forUpdate().expressionList().expression():
+                self.expression_info(update_ctx)
 
         self.loop_depth += 1
         self.visit(ctx.block())
@@ -537,8 +542,9 @@ class SemanticAnalyzer(JSSParserVisitor):
     def visitForInit(self, ctx):
         if ctx.variableDeclaration() is not None:
             self.visit(ctx.variableDeclaration())
-        elif ctx.expression() is not None:
-            self.expression_info(ctx.expression())
+        elif ctx.expressionList() is not None:
+            for init_ctx in ctx.expressionList().expression():
+                self.expression_info(init_ctx)
 
     def visitBreakStatement(self, ctx):
         if self.loop_depth == 0:

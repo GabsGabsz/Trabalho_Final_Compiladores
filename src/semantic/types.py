@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -6,16 +6,33 @@ class JssType:
     name: str
     is_array: bool = False
     array_size: int | None = None
+    dimensions: tuple[int, ...] = field(default_factory=tuple)
+
+    def __post_init__(self):
+        if self.is_array and not self.dimensions and self.array_size is not None:
+            object.__setattr__(self, "dimensions", (self.array_size,))
+        if self.dimensions and not self.is_array:
+            object.__setattr__(self, "is_array", True)
+        if self.dimensions and self.array_size is None:
+            object.__setattr__(self, "array_size", self.dimensions[0])
 
     def __str__(self) -> str:
         if self.is_array:
-            return f"{self.name}[{self.array_size}]"
+            dims = "".join(f"[{size}]" for size in self.dimensions)
+            return f"{self.name}{dims}"
         return self.name
 
     def element_type(self) -> "JssType":
         if not self.is_array:
             raise ValueError("Tipo não é vetor.")
-        return JssType(self.name)
+        if len(self.dimensions) <= 1:
+            return JssType(self.name)
+        return JssType(
+            self.name,
+            is_array=True,
+            array_size=self.dimensions[1],
+            dimensions=self.dimensions[1:],
+        )
 
     def is_numeric(self) -> bool:
         return not self.is_array and self.name in {"int", "real"}

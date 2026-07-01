@@ -7,7 +7,7 @@ Write-Host "=============================="
 Get-ChildItem tests\success\*.jss | Sort-Object Name | ForEach-Object {
     Write-Host "`n[SUCESSO] $($_.Name)"
 
-    $output = Get-Content -Raw $_.FullName | python src\main.py
+    $output = Get-Content -Raw $_.FullName | python main.py
     Write-Host $output
 
     if (-not ($output -like "OK:*")) {
@@ -25,7 +25,7 @@ Write-Host "=============================="
 Get-ChildItem tests\errors\*.jss | Sort-Object Name | ForEach-Object {
     Write-Host "`n[ERRO ESPERADO] $($_.Name)"
 
-    $output = Get-Content -Raw $_.FullName | python src\main.py
+    $output = Get-Content -Raw $_.FullName | python main.py
     Write-Host $output
 
     if (-not ($output -like "ERRO*")) {

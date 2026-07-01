@@ -51,7 +51,7 @@ Write-Host "=============================="
 foreach ($test in $tests) {
     Write-Host "`n[BACKEND] $($test.File)"
 
-    $compileOutput = Get-Content -Raw $test.File | python src\main.py --jasmin
+    $compileOutput = Get-Content -Raw $test.File | python main.py --jasmin
     Write-Host $compileOutput
 
     if (-not ($compileOutput -like "OK: codigo Jasmin gerado*")) {

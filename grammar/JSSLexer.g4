@@ -37,6 +37,8 @@ BOOL_TYPE   : 'bool';
 // =====================
 
 POW_ASSIGN   : '**=';
+AND_ASSIGN   : '&&=';
+OR_ASSIGN    : '||=';
 PLUS_ASSIGN  : '+=';
 MINUS_ASSIGN : '-=';
 MULT_ASSIGN  : '*=';

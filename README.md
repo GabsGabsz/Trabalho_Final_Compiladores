@@ -1,3 +1,20 @@
+
+## Execucao oficial solicitada pelo professor
+
+O ponto de entrada principal fica na raiz do projeto. Assim, a execucao pode ser feita diretamente com:
+
+```powershell
+python main.py arquivo.jss
+```
+
+Para gerar codigo Jasmin:
+
+```powershell
+python main.py --jasmin arquivo.jss
+```
+
+O arquivo `src/main.py` contem a implementacao real da linha de comando; o `main.py` da raiz apenas chama esse modulo para atender ao formato de execucao pedido.
+
 # Compilador JSS - Java Script Simplificado
 
 Projeto final da disciplina de Compiladores 2026.1. O projeto implementa um compilador para a linguagem Java Script Simplificado (JSS), com front-end e back-end usando ANTLR4, Python e Jasmin/JVM.
@@ -47,7 +64,7 @@ Caso seja necessário regenerar os arquivos em `generated/`, execute:
 O compilador lê o programa JSS pela entrada padrão. Exemplo com um arquivo válido:
 
 ```powershell
-Get-Content -Raw tests\success\01_variaveis.jss | python src\main.py
+Get-Content -Raw tests\success\01_variaveis.jss | python main.py
 ```
 
 Saída esperada:
@@ -59,7 +76,7 @@ OK: programa valido.
 Exemplo com erro semântico:
 
 ```powershell
-Get-Content -Raw tests\errors\semantico_variavel_nao_declarada.jss | python src\main.py
+Get-Content -Raw tests\errors\semantico_variavel_nao_declarada.jss | python main.py
 ```
 
 Saída esperada:
@@ -73,7 +90,7 @@ ERRO SEMANTICO na linha ..., coluna ...: identificador 'x' nao declarado.
 Para gerar o código Jasmin:
 
 ```powershell
-Get-Content -Raw tests\backend\29_programa_completo.jss | python src\main.py --jasmin
+Get-Content -Raw tests\backend\29_programa_completo.jss | python main.py --jasmin
 ```
 
 Saída esperada:
@@ -217,4 +234,17 @@ Numero: 11
 Total: 142.0
 ```
 
+## 9. Observação sobre a entrega
 
+Para submissão, não é necessário incluir a pasta `.venv`, arquivos `__pycache__`, arquivos `.pyc` ou arquivos gerados dentro de `output/classes`.
+
+## Entrada por arquivo
+
+Além da entrada padrão, o compilador também aceita o caminho de um arquivo `.jss` como argumento de linha de comando:
+
+```powershell
+python main.py tests\prof\1_basics.jss
+python main.py --jasmin tests\prof\1_basics.jss
+```
+
+Esse modo facilita a execução conforme a especificação do trabalho e os testes fornecidos pelo professor.

@@ -22,6 +22,7 @@ class VarInfo:
     slot: int | None = None
     is_global: bool = False
     array_size: int | None = None
+    array_sizes: list[int] | None = None
 
     @property
     def descriptor(self) -> str:
@@ -55,6 +56,7 @@ class FieldInfo:
     name: str
     type_name: str
     array_size: int | None = None
+    array_sizes: list[int] | None = None
 
     @property
     def descriptor(self) -> str:
@@ -111,7 +113,11 @@ class MethodContext:
         self.break_labels: list[str] = []
 
     def add_local(
-        self, name: str, type_name: str, array_size: int | None = None
+        self,
+        name: str,
+        type_name: str,
+        array_size: int | None = None,
+        array_sizes: list[int] | None = None,
     ) -> VarInfo:
         var = VarInfo(
             name=name,
@@ -119,6 +125,7 @@ class MethodContext:
             slot=self.next_slot,
             is_global=False,
             array_size=array_size,
+            array_sizes=array_sizes,
         )
 
         self.locals[name] = var
@@ -158,18 +165,7 @@ def is_reference_type(type_name: str) -> bool:
 
 def jasmin_descriptor(type_name: str) -> str:
     if is_array_type(type_name):
-        base = array_element_type(type_name)
-
-        if base == "int":
-            return "[I"
-        if base == "real":
-            return "[D"
-        if base == "bool":
-            return "[Z"
-        if base == "str":
-            return "[Ljava/lang/String;"
-
-        return f"[L{base};"
+        return "[" + jasmin_descriptor(array_element_type(type_name))
 
     if type_name == "int":
         return "I"
@@ -194,6 +190,8 @@ def jasmin_newarray_instruction(base_type: str) -> str:
         return "newarray boolean"
     if base_type == "str":
         return "anewarray java/lang/String"
+    if is_array_type(base_type):
+        return f"anewarray {jasmin_descriptor(base_type)}"
 
     return f"anewarray {base_type}"
 
@@ -272,7 +270,8 @@ class JasminGenerator(JSSParserVisitor):
         # Segunda passada: coleta membros de classes, globais e funcoes.
         for top in program_ctx.topLevelDeclaration():
             class_ctx = top.classDeclaration()
-            var_ctx = top.variableDeclaration()
+            stmt_ctx = top.statement()
+            var_ctx = stmt_ctx.variableDeclaration() if stmt_ctx is not None else None
             func_ctx = top.functionDeclaration()
 
             if class_ctx is not None:
@@ -281,6 +280,7 @@ class JasminGenerator(JSSParserVisitor):
             elif var_ctx is not None:
                 type_name = self.type_name_from_type_ctx(var_ctx.type_())
                 array_size = self.array_size_from_type_ctx(var_ctx.type_())
+                array_sizes = self.array_sizes_from_type_ctx(var_ctx.type_())
 
                 for declarator in var_ctx.variableDeclarator():
                     name = declarator.ID().getText()
@@ -291,6 +291,7 @@ class JasminGenerator(JSSParserVisitor):
                         slot=None,
                         is_global=True,
                         array_size=array_size,
+                        array_sizes=array_sizes,
                     )
 
                     self.global_initializers.append((type_name, declarator))
@@ -323,10 +324,12 @@ class JasminGenerator(JSSParserVisitor):
                 field_name = field_ctx.ID().getText()
                 field_type = self.type_name_from_type_ctx(field_ctx.type_())
                 field_array_size = self.array_size_from_type_ctx(field_ctx.type_())
+                field_array_sizes = self.array_sizes_from_type_ctx(field_ctx.type_())
                 class_info.fields[field_name] = FieldInfo(
                     name=field_name,
                     type_name=field_type,
                     array_size=field_array_size,
+                    array_sizes=field_array_sizes,
                 )
 
             elif constructor_ctx is not None:
@@ -350,28 +353,22 @@ class JasminGenerator(JSSParserVisitor):
 
     def type_name_from_type_ctx(self, ctx) -> str:
         base = ctx.baseType().getText()
+        sizes = self.array_sizes_from_type_ctx(ctx)
 
-        if ctx.arraySuffix() is not None:
-            return f"{base}[]"
+        if sizes:
+            return base + "[]" * len(sizes)
 
         return base
 
-    def array_size_from_type_ctx(self, ctx) -> int | None:
+    def array_sizes_from_type_ctx(self, ctx) -> list[int]:
         if ctx.arraySuffix() is None:
-            return None
+            return []
 
-        suffix = ctx.arraySuffix()
+        return [int(tok.getText()) for tok in ctx.arraySuffix().INT_LITERAL()]
 
-        if hasattr(suffix, "INT_LITERAL") and suffix.INT_LITERAL() is not None:
-            return int(suffix.INT_LITERAL().getText())
-
-        text = suffix.getText()
-        digits = "".join(ch for ch in text if ch.isdigit())
-
-        if digits:
-            return int(digits)
-
-        return None
+    def array_size_from_type_ctx(self, ctx) -> int | None:
+        sizes = self.array_sizes_from_type_ctx(ctx)
+        return sizes[0] if sizes else None
 
     def type_name_from_return_type_ctx(self, ctx) -> str:
         if ctx.VOID() is not None:
@@ -452,13 +449,18 @@ class JasminGenerator(JSSParserVisitor):
             initializer = declarator.initializer()
 
             if is_array_type(var.type_name):
+                if initializer is not None and initializer.expression() is not None:
+                    self.gen_expression(initializer.expression())
+                    self.emit_store_var(var)
+                    continue
+
                 if var.array_size is None:
                     raise NotImplementedError(
                         "Vetor global sem tamanho nao suportado no back-end."
                     )
 
                 self.emit_array_creation_with_initializer(
-                    var.type_name, var.array_size, initializer
+                    var.type_name, var.array_sizes or [var.array_size], initializer
                 )
                 self.emit_store_var(var)
                 continue
@@ -494,7 +496,27 @@ class JasminGenerator(JSSParserVisitor):
                     self.emit_function(func_ctx)
 
         if not found_main:
-            self.emit_empty_main()
+            self.emit_top_level_main(program_ctx)
+
+    def emit_top_level_main(self, program_ctx):
+        self.current_method = MethodContext("main", "void", start_slot=1)
+
+        self.writer.emit(".method public static main([Ljava/lang/String;)V")
+        self.writer.indent()
+        self.writer.emit(".limit stack 300")
+        self.writer.emit(".limit locals 300")
+
+        for top in program_ctx.topLevelDeclaration():
+            stmt_ctx = top.statement()
+            if stmt_ctx is not None and stmt_ctx.variableDeclaration() is None:
+                self.gen_statement(stmt_ctx)
+
+        self.writer.emit("return")
+        self.writer.dedent()
+        self.writer.emit(".end method")
+        self.writer.emit()
+
+        self.current_method = None
 
     def emit_empty_main(self):
         self.writer.emit(".method public static main([Ljava/lang/String;)V")
@@ -562,8 +584,12 @@ class JasminGenerator(JSSParserVisitor):
                 param_name = param_ctx.ID().getText()
                 param_type = self.type_name_from_type_ctx(param_ctx.type_())
                 param_array_size = self.array_size_from_type_ctx(param_ctx.type_())
+                param_array_sizes = self.array_sizes_from_type_ctx(param_ctx.type_())
                 self.current_method.add_local(
-                    param_name, param_type, array_size=param_array_size
+                    param_name,
+                    param_type,
+                    array_size=param_array_size,
+                    array_sizes=param_array_sizes,
                 )
 
         self.writer.emit(f".method public <init>{constructor.descriptor}")
@@ -573,6 +599,17 @@ class JasminGenerator(JSSParserVisitor):
 
         self.writer.emit("aload_0")
         self.writer.emit("invokespecial java/lang/Object/<init>()V")
+
+        # Inicializa automaticamente atributos que sao vetores com tamanho fixo.
+        for field_info in class_info.fields.values():
+            if is_array_type(field_info.type_name) and field_info.array_sizes:
+                self.writer.emit("aload_0")
+                self.emit_array_creation_with_initializer(
+                    field_info.type_name, field_info.array_sizes, None
+                )
+                self.writer.emit(
+                    f"putfield {class_info.name}/{field_info.name} {field_info.descriptor}"
+                )
 
         if ctx is not None:
             self.gen_block(ctx.block())
@@ -598,8 +635,12 @@ class JasminGenerator(JSSParserVisitor):
                 param_name = param_ctx.ID().getText()
                 param_type = self.type_name_from_type_ctx(param_ctx.type_())
                 param_array_size = self.array_size_from_type_ctx(param_ctx.type_())
+                param_array_sizes = self.array_sizes_from_type_ctx(param_ctx.type_())
                 self.current_method.add_local(
-                    param_name, param_type, array_size=param_array_size
+                    param_name,
+                    param_type,
+                    array_size=param_array_size,
+                    array_sizes=param_array_sizes,
                 )
 
         self.writer.emit(f".method public {method_info.name}{method_info.descriptor}")
@@ -655,8 +696,12 @@ class JasminGenerator(JSSParserVisitor):
             param_name = param_ctx.ID().getText()
             param_type = self.type_name_from_type_ctx(param_ctx.type_())
             param_array_size = self.array_size_from_type_ctx(param_ctx.type_())
+            param_array_sizes = self.array_sizes_from_type_ctx(param_ctx.type_())
             self.current_method.add_local(
-                param_name, param_type, array_size=param_array_size
+                param_name,
+                param_type,
+                array_size=param_array_size,
+                array_sizes=param_array_sizes,
             )
 
         self.writer.emit(f".method public static {name}{info.descriptor}")
@@ -733,20 +778,28 @@ class JasminGenerator(JSSParserVisitor):
     def gen_variable_declaration(self, ctx):
         type_name = self.type_name_from_type_ctx(ctx.type_())
         array_size = self.array_size_from_type_ctx(ctx.type_())
+        array_sizes = self.array_sizes_from_type_ctx(ctx.type_())
 
         for declarator in ctx.variableDeclarator():
             name = declarator.ID().getText()
-            var = self.current_method.add_local(name, type_name, array_size=array_size)
+            var = self.current_method.add_local(
+                name, type_name, array_size=array_size, array_sizes=array_sizes
+            )
             initializer = declarator.initializer()
 
             if is_array_type(type_name):
+                if initializer is not None and initializer.expression() is not None:
+                    self.gen_expression(initializer.expression())
+                    self.emit_store_var(var)
+                    continue
+
                 if array_size is None:
                     raise NotImplementedError(
                         "Vetor sem tamanho nao suportado no back-end."
                     )
 
                 self.emit_array_creation_with_initializer(
-                    type_name, array_size, initializer
+                    type_name, array_sizes, initializer
                 )
                 self.emit_store_var(var)
                 continue
@@ -958,7 +1011,7 @@ class JasminGenerator(JSSParserVisitor):
                     self.emit_store_lvalue(left)
                     return "void"
 
-                if op in {"+=", "-=", "*=", "/=", "%=", "**="}:
+                if op in {"+=", "-=", "*=", "/=", "%=", "**=", "&&=", "||="}:
                     self.emit_load_lvalue_value(left)
 
                     right_type = self.gen_expression(ctx.assignmentExpression())
@@ -1117,6 +1170,41 @@ class JasminGenerator(JSSParserVisitor):
             if ctx.postfixExpression() is not None:
                 return self.gen_postfix(ctx.postfixExpression())
 
+            if ctx.INC() is not None or ctx.DEC() is not None:
+                postfix = self.find_child_by_type_name(
+                    ctx.unaryExpression(), "PostfixExpressionContext"
+                )
+
+                if postfix is None:
+                    raise NotImplementedError(
+                        "Incremento/decremento sem destino valido no back-end."
+                    )
+
+                target = self.resolve_lvalue(postfix)
+                self.emit_load_lvalue_value(target)
+
+                if target.type_name == "real":
+                    self.writer.emit("dconst_1")
+                else:
+                    self.writer.emit("iconst_1")
+
+                if ctx.INC() is not None:
+                    self.emit_compound_operation("+=", target.type_name)
+                else:
+                    self.emit_compound_operation("-=", target.type_name)
+
+                # Prefixo ++x/--x tambem produz o valor atualizado quando usado em expressao.
+                if target.kind == "var":
+                    if target.type_name == "real":
+                        self.writer.emit("dup2")
+                    else:
+                        self.writer.emit("dup")
+                    self.emit_store_lvalue(target)
+                    return target.type_name
+
+                self.emit_store_lvalue(target)
+                return "void"
+
             inner_type = self.gen_expression(ctx.unaryExpression())
 
             if ctx.NOT() is not None:
@@ -1141,32 +1229,6 @@ class JasminGenerator(JSSParserVisitor):
             if ctx.PLUS() is not None:
                 return inner_type
 
-            if ctx.INC() is not None or ctx.DEC() is not None:
-                postfix = self.find_child_by_type_name(
-                    ctx.unaryExpression(), "PostfixExpressionContext"
-                )
-
-                if postfix is None:
-                    raise NotImplementedError(
-                        "Incremento/decremento sem destino valido no back-end."
-                    )
-
-                target = self.resolve_lvalue(postfix)
-                self.emit_load_lvalue_value(target)
-
-                if target.type_name == "real":
-                    self.writer.emit("dconst_1")
-                else:
-                    self.writer.emit("iconst_1")
-
-                if ctx.INC() is not None:
-                    self.emit_compound_operation("+=", target.type_name)
-                else:
-                    self.emit_compound_operation("-=", target.type_name)
-
-                self.emit_store_lvalue(target)
-                return "void"
-
         if name == "PostfixExpressionContext":
             return self.gen_postfix(ctx)
 
@@ -1175,6 +1237,48 @@ class JasminGenerator(JSSParserVisitor):
 
         raise NotImplementedError(f"Expressao nao suportada no back-end: {name}")
 
+    def gen_postfix_inc_dec(self, ctx) -> str:
+        suffixes = ctx.postfixSuffix()
+        last_suffix = suffixes[-1]
+
+        target = self.resolve_lvalue(ctx)
+
+        if target.type_name not in {"int", "real"}:
+            raise NotImplementedError(
+                "Pos-incremento/pos-decremento aceita apenas int ou real no back-end."
+            )
+
+        # Carrega o valor antigo. Para vetor e atributo, resolve_lvalue ja deixou
+        # arrayref/indice ou objectref na pilha; guardamos apenas o valor antigo
+        # em temporario, preservando a referencia necessaria para o store.
+        self.emit_load_lvalue_value(target)
+
+        temp_slot = self.allocate_temp_slot(target.type_name)
+        if target.type_name == "real":
+            self.writer.emit(f"dstore {temp_slot}")
+            self.writer.emit(f"dload {temp_slot}")
+            self.writer.emit("dconst_1")
+        else:
+            self.writer.emit(f"istore {temp_slot}")
+            self.writer.emit(f"iload {temp_slot}")
+            self.writer.emit("iconst_1")
+
+        if last_suffix.INC() is not None:
+            self.emit_compound_operation("+=", target.type_name)
+        else:
+            self.emit_compound_operation("-=", target.type_name)
+
+        self.emit_store_lvalue(target)
+
+        # Como pos-incremento/pos-decremento e uma expressao, deixa na pilha
+        # o valor antigo. Se for usado como comando isolado, gen_statement remove.
+        if target.type_name == "real":
+            self.writer.emit(f"dload {temp_slot}")
+        else:
+            self.writer.emit(f"iload {temp_slot}")
+
+        return target.type_name
+
     def gen_postfix(self, ctx) -> str:
         primary = ctx.primaryExpression()
         suffixes = ctx.postfixSuffix()
@@ -1182,32 +1286,12 @@ class JasminGenerator(JSSParserVisitor):
         if not suffixes:
             return self.gen_primary(primary)
 
-        # Chamada de metodo: objeto.metodo(...) ou this.metodo(...)
-        # Esta regra precisa vir antes da chamada de funcao global,
-        # porque p.soma() tambem possui LPAREN, mas tem DOT.
-        if (
-            len(suffixes) == 1
-            and suffixes[0].DOT() is not None
-            and suffixes[0].LPAREN() is not None
-        ):
-            owner_type = self.gen_primary(primary)
-            method_name = suffixes[0].ID().getText()
-            method_info = self.classes[owner_type].methods[method_name]
-
-            arg_list = suffixes[0].argumentList()
-            if arg_list is not None:
-                for expr in arg_list.expression():
-                    self.gen_expression(expr)
-
-            self.writer.emit(
-                f"invokevirtual {owner_type}/{method_name}{method_info.descriptor}"
-            )
-            return method_info.return_type
+        if suffixes[-1].INC() is not None or suffixes[-1].DEC() is not None:
+            return self.gen_postfix_inc_dec(ctx)
 
         # Chamada de funcao global: nome(...)
-        # Aqui nao pode ter DOT. Exemplo valido: fatorial(5)
         if (
-            len(suffixes) == 1
+            len(suffixes) >= 1
             and suffixes[0].LPAREN() is not None
             and suffixes[0].DOT() is None
             and primary.ID() is not None
@@ -1223,51 +1307,54 @@ class JasminGenerator(JSSParserVisitor):
             self.writer.emit(
                 f"invokestatic {self.class_name}/{func_name}{func_info.descriptor}"
             )
-            return func_info.return_type
+            current_type = func_info.return_type
+            remaining_suffixes = suffixes[1:]
+        else:
+            current_type = self.gen_primary(primary)
+            remaining_suffixes = suffixes
 
-        # Acesso a vetor: nome[indice]
-        if (
-            len(suffixes) == 1
-            and suffixes[0].LBRACK() is not None
-            and primary.ID() is not None
-        ):
-            var = self.resolve_variable(primary.ID().getText())
+        for suffix in remaining_suffixes:
+            if suffix.LBRACK() is not None:
+                if not is_array_type(current_type):
+                    raise NotImplementedError("Indexacao em variavel nao vetor no back-end.")
 
-            if not is_array_type(var.type_name):
+                element_type = array_element_type(current_type)
+                index_expr = self.find_child_by_type_name(suffix, "ExpressionContext")
+                if index_expr is None:
+                    raise NotImplementedError("Indice de vetor nao encontrado no back-end.")
+
+                self.gen_expression(index_expr)
+                self.writer.emit(jasmin_array_load_instruction(element_type))
+                current_type = element_type
+
+            elif suffix.DOT() is not None and suffix.LPAREN() is not None:
+                method_name = suffix.ID().getText()
+                method_info = self.classes[current_type].methods[method_name]
+
+                arg_list = suffix.argumentList()
+                if arg_list is not None:
+                    for expr in arg_list.expression():
+                        self.gen_expression(expr)
+
+                self.writer.emit(
+                    f"invokevirtual {current_type}/{method_name}{method_info.descriptor}"
+                )
+                current_type = method_info.return_type
+
+            elif suffix.DOT() is not None:
+                field_name = suffix.ID().getText()
+                field_info = self.classes[current_type].fields[field_name]
+                self.writer.emit(
+                    f"getfield {current_type}/{field_name} {field_info.descriptor}"
+                )
+                current_type = field_info.type_name
+
+            else:
                 raise NotImplementedError(
-                    "Indexacao em variavel nao vetor no back-end."
+                    "Back-end Jasmin ainda nao suporta acesso encadeado complexo."
                 )
 
-            base_type = array_element_type(var.type_name)
-
-            self.emit_load_var(var)
-
-            index_expr = self.find_child_by_type_name(suffixes[0], "ExpressionContext")
-            if index_expr is None:
-                raise NotImplementedError("Indice de vetor nao encontrado no back-end.")
-
-            self.gen_expression(index_expr)
-
-            self.writer.emit(jasmin_array_load_instruction(base_type))
-            return base_type
-
-        # Acesso a atributo: objeto.campo ou this.campo
-        if (
-            len(suffixes) == 1
-            and suffixes[0].DOT() is not None
-            and suffixes[0].LPAREN() is None
-        ):
-            owner_type = self.gen_primary(primary)
-            field_name = suffixes[0].ID().getText()
-            field_info = self.classes[owner_type].fields[field_name]
-            self.writer.emit(
-                f"getfield {owner_type}/{field_name} {field_info.descriptor}"
-            )
-            return field_info.type_name
-
-        raise NotImplementedError(
-            "Back-end Jasmin ainda nao suporta acesso encadeado complexo."
-        )
+        return current_type
 
     def gen_primary(self, ctx) -> str:
         if ctx.literal() is not None:
@@ -1393,7 +1480,12 @@ class JasminGenerator(JSSParserVisitor):
 
     def resolve_lvalue(self, postfix_ctx) -> LValue:
         primary = postfix_ctx.primaryExpression()
-        suffixes = postfix_ctx.postfixSuffix()
+        suffixes = list(postfix_ctx.postfixSuffix())
+
+        # Em x++ ou x--, o ultimo sufixo nao faz parte do destino de atribuicao;
+        # ele apenas indica a operacao de incremento/decremento.
+        if suffixes and (suffixes[-1].INC() is not None or suffixes[-1].DEC() is not None):
+            suffixes = suffixes[:-1]
 
         # Variavel simples: x
         if primary.ID() is not None and not suffixes:
@@ -1401,48 +1493,54 @@ class JasminGenerator(JSSParserVisitor):
             var = self.resolve_variable(name)
             return LValue(kind="var", var=var, type_name=var.type_name)
 
-        # Elemento de vetor: v[i]
-        if (
-            primary.ID() is not None
-            and len(suffixes) == 1
-            and suffixes[0].LBRACK() is not None
-        ):
-            name = primary.ID().getText()
-            var = self.resolve_variable(name)
-
-            if not is_array_type(var.type_name):
-                raise NotImplementedError(
-                    "Indexacao em variavel nao vetor no back-end."
-                )
-
-            base_type = array_element_type(var.type_name)
-
+        if primary.ID() is not None:
+            var = self.resolve_variable(primary.ID().getText())
             self.emit_load_var(var)
+            current_type = var.type_name
+        else:
+            current_type = self.gen_primary(primary)
 
-            index_expr = self.find_child_by_type_name(suffixes[0], "ExpressionContext")
-            if index_expr is None:
-                raise NotImplementedError("Indice de vetor nao encontrado no back-end.")
+        for index, suffix in enumerate(suffixes):
+            is_last = index == len(suffixes) - 1
 
-            self.gen_expression(index_expr)
+            if suffix.DOT() is not None and suffix.LPAREN() is None:
+                field_name = suffix.ID().getText()
+                field_info = self.classes[current_type].fields[field_name]
 
-            return LValue(kind="array", var=var, type_name=base_type)
+                if is_last:
+                    return LValue(
+                        kind="field",
+                        type_name=field_info.type_name,
+                        owner_type=current_type,
+                        field_name=field_name,
+                    )
 
-        # Atributo: this.x ou objeto.x
-        if (
-            len(suffixes) == 1
-            and suffixes[0].DOT() is not None
-            and suffixes[0].LPAREN() is None
-        ):
-            owner_type = self.gen_primary(primary)
-            field_name = suffixes[0].ID().getText()
-            field_info = self.classes[owner_type].fields[field_name]
+                self.writer.emit(
+                    f"getfield {current_type}/{field_name} {field_info.descriptor}"
+                )
+                current_type = field_info.type_name
 
-            return LValue(
-                kind="field",
-                type_name=field_info.type_name,
-                owner_type=owner_type,
-                field_name=field_name,
-            )
+            elif suffix.LBRACK() is not None:
+                if not is_array_type(current_type):
+                    raise NotImplementedError("Indexacao em variavel nao vetor no back-end.")
+
+                element_type = array_element_type(current_type)
+                index_expr = self.find_child_by_type_name(suffix, "ExpressionContext")
+                if index_expr is None:
+                    raise NotImplementedError("Indice de vetor nao encontrado no back-end.")
+
+                self.gen_expression(index_expr)
+
+                if is_last:
+                    return LValue(kind="array", var=None, type_name=element_type)
+
+                self.writer.emit(jasmin_array_load_instruction(element_type))
+                current_type = element_type
+
+            else:
+                raise NotImplementedError(
+                    "Back-end Jasmin ainda suporta atribuicao apenas em variaveis simples, elementos de vetor ou atributos."
+                )
 
         raise NotImplementedError(
             "Back-end Jasmin ainda suporta atribuicao apenas em variaveis simples, elementos de vetor ou atributos."
@@ -1593,6 +1691,10 @@ class JasminGenerator(JSSParserVisitor):
         )
 
     def emit_compound_operation(self, op: str, type_name: str):
+        if type_name == "bool" and op in {"&&=", "||="}:
+            self.writer.emit("iand" if op == "&&=" else "ior")
+            return
+
         if type_name == "real":
             if op == "+=":
                 self.writer.emit("dadd")
@@ -1692,6 +1794,22 @@ class JasminGenerator(JSSParserVisitor):
         self.emit_push_int(size)
         self.writer.emit(jasmin_newarray_instruction(base_type))
 
+    def emit_new_array_from_sizes(self, type_name: str, sizes: list[int]):
+        if not sizes:
+            raise NotImplementedError("Vetor sem tamanho nao suportado no back-end.")
+
+        element_type = array_element_type(type_name)
+        self.emit_new_array(element_type, sizes[0])
+
+        # Para vetores multidimensionais, aloca cada subvetor.
+        # Ex.: int[3][3] vira um array de 3 referencias para int[3].
+        if len(sizes) > 1:
+            for index in range(sizes[0]):
+                self.writer.emit("dup")
+                self.emit_push_int(index)
+                self.emit_new_array_from_sizes(element_type, sizes[1:])
+                self.writer.emit("aastore")
+
     def find_array_literal(self, initializer_ctx):
         if initializer_ctx is None:
             return None
@@ -1699,16 +1817,25 @@ class JasminGenerator(JSSParserVisitor):
         return self.find_child_by_type_name(initializer_ctx, "ArrayLiteralContext")
 
     def emit_array_creation_with_initializer(
-        self, type_name: str, array_size: int, initializer_ctx
+        self, type_name: str, array_sizes, initializer_ctx
     ):
-        base_type = array_element_type(type_name)
+        if isinstance(array_sizes, int):
+            sizes = [array_sizes]
+        else:
+            sizes = list(array_sizes or [])
 
-        self.emit_new_array(base_type, array_size)
+        base_type = array_element_type(type_name)
+        self.emit_new_array_from_sizes(type_name, sizes)
 
         array_literal = self.find_array_literal(initializer_ctx)
 
         if array_literal is None:
             return
+
+        if len(sizes) != 1:
+            raise NotImplementedError(
+                "Inicializacao literal de vetor multidimensional ainda nao suportada no back-end."
+            )
 
         expressions = array_literal.expression()
 

@@ -15,7 +15,7 @@ program
 topLevelDeclaration
     : classDeclaration
     | functionDeclaration
-    | variableDeclaration SEMI
+    | statement
     ;
 
 // =====================
@@ -65,7 +65,7 @@ primitiveType
     ;
 
 arraySuffix
-    : LBRACK INT_LITERAL RBRACK
+    : (LBRACK INT_LITERAL RBRACK)+
     ;
 
 returnType
@@ -207,6 +207,8 @@ assignmentOperator
     | DIV_ASSIGN
     | MOD_ASSIGN
     | POW_ASSIGN
+    | AND_ASSIGN
+    | OR_ASSIGN
     ;
 
 logicalOrExpression
@@ -251,6 +253,8 @@ postfixSuffix
     | LBRACK expression RBRACK
     | DOT ID
     | LPAREN argumentList? RPAREN
+    | INC
+    | DEC
     ;
     
 primaryExpression

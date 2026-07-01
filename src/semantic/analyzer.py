@@ -1,4 +1,4 @@
-﻿# pyright: reportOptionalMemberAccess=false
+# pyright: reportOptionalMemberAccess=false
 # pyright: reportOptionalIterable=false
 # pyright: reportArgumentType=false
 # pyright: reportGeneralTypeIssues=false
@@ -128,6 +128,12 @@ class SemanticAnalyzer(JSSParserVisitor):
 
                 self.scopes.global_scope.define(function_symbol)
 
+        # Registra variaveis globais declaradas em sentencas de topo.
+        for top in program_ctx.topLevelDeclaration():
+            stmt_ctx = top.statement()
+            if stmt_ctx is not None and stmt_ctx.variableDeclaration() is not None:
+                self.declare_variable_declaration(stmt_ctx.variableDeclaration(), check_initializer=False)
+
         # Por fim, completa informacoes internas das classes.
         for top in program_ctx.topLevelDeclaration():
             class_ctx = top.classDeclaration()
@@ -218,10 +224,10 @@ class SemanticAnalyzer(JSSParserVisitor):
 
         array_suffix = ctx.arraySuffix()
         if array_suffix is not None:
-            size = int(array_suffix.INT_LITERAL().getText())
-            if size <= 0:
+            dimensions = tuple(int(tok.getText()) for tok in array_suffix.INT_LITERAL())
+            if any(size <= 0 for size in dimensions):
                 self.error(ctx, "dimensao do vetor deve ser maior que zero.")
-            return JssType(base, is_array=True, array_size=size)
+            return JssType(base, is_array=True, array_size=dimensions[0], dimensions=dimensions)
 
         return JssType(base)
 
@@ -229,12 +235,7 @@ class SemanticAnalyzer(JSSParserVisitor):
         if ctx.VOID() is not None:
             return VOID
 
-        typ = self.type_from_type_ctx(ctx.type_())
-
-        if typ.is_array:
-            self.error(ctx, "funcao nao pode ter tipo de retorno vetor.")
-
-        return typ
+        return self.type_from_type_ctx(ctx.type_())
 
     def params_from_parameter_list(self, parameter_list_ctx) -> list[tuple[str, JssType]]:
         params: list[tuple[str, JssType]] = []
@@ -265,14 +266,14 @@ class SemanticAnalyzer(JSSParserVisitor):
             self.visit(top)
 
     def visitTopLevelDeclaration(self, ctx):
-        if ctx.variableDeclaration() is not None:
-            self.visit(ctx.variableDeclaration())
+        if ctx.statement() is not None:
+            self.visit(ctx.statement())
         elif ctx.functionDeclaration() is not None:
             self.visit(ctx.functionDeclaration())
         elif ctx.classDeclaration() is not None:
             self.visit(ctx.classDeclaration())
 
-    def visitVariableDeclaration(self, ctx):
+    def declare_variable_declaration(self, ctx, check_initializer: bool = True):
         modifier = ctx.variableModifier().getText()
         is_const = modifier == "const"
         declared_type = self.type_from_type_ctx(ctx.type_())
@@ -290,22 +291,30 @@ class SemanticAnalyzer(JSSParserVisitor):
                 is_const=is_const
             )
 
-            self.scopes.define(symbol)
+            existing = self.scopes.current_scope.resolve_local(name)
+            if existing is None:
+                self.scopes.define(symbol)
+            elif not (check_initializer and existing.line == symbol.line and existing.column == symbol.column):
+                self.scopes.define(symbol)
 
-            initializer = declarator.initializer()
+            if check_initializer:
+                initializer = declarator.initializer()
 
-            if is_const and initializer is None:
-                self.error(declarator, f"constante '{name}' deve ser inicializada.")
+                if is_const and initializer is None:
+                    self.error(declarator, f"constante '{name}' deve ser inicializada.")
 
-            if initializer is not None:
-                init_type = self.initializer_type(initializer)
+                if initializer is not None:
+                    init_type = self.initializer_type(initializer)
 
-                if not can_assign(declared_type, init_type, self.known_classes):
-                    self.error(
-                        initializer,
-                        f"nao e possivel atribuir valor do tipo '{init_type}' "
-                        f"ao identificador '{name}' do tipo '{declared_type}'."
-                    )
+                    if not can_assign(declared_type, init_type, self.known_classes):
+                        self.error(
+                            initializer,
+                            f"nao e possivel atribuir valor do tipo '{init_type}' "
+                            f"ao identificador '{name}' do tipo '{declared_type}'."
+                        )
+
+    def visitVariableDeclaration(self, ctx):
+        self.declare_variable_declaration(ctx, check_initializer=True)
 
     def initializer_type(self, ctx) -> JssType:
         if ctx.expression() is not None:
@@ -315,7 +324,7 @@ class SemanticAnalyzer(JSSParserVisitor):
         expressions = array_ctx.expression()
 
         if not expressions:
-            return JssType("empty_array", is_array=True, array_size=0)
+            return JssType("empty_array", is_array=True, array_size=0, dimensions=(0,))
 
         first_type = self.expression_info(expressions[0]).type
 
@@ -324,7 +333,7 @@ class SemanticAnalyzer(JSSParserVisitor):
             if current_type != first_type:
                 self.error(expr, "todos os elementos do vetor devem possuir o mesmo tipo.")
 
-        return JssType(first_type.name, is_array=True, array_size=len(expressions))
+        return JssType(first_type.name, is_array=True, array_size=len(expressions), dimensions=(len(expressions),))
 
     def visitFunctionDeclaration(self, ctx):
         name = ctx.ID().getText()
@@ -606,7 +615,7 @@ class SemanticAnalyzer(JSSParserVisitor):
                         )
                     return ExprInfo(left.type)
 
-                if op in {"+=", "-=", "*=", "/=", "%=", "**="}:
+                if op in {"+=", "-=", "*=", "/=", "%=", "**=", "&&=", "||="}:
                     self.validate_compound_assignment(ctx, left.type, right.type, op)
                     return ExprInfo(left.type)
 
@@ -818,6 +827,20 @@ class SemanticAnalyzer(JSSParserVisitor):
 
                 info = ExprInfo(type=info.symbol.return_type or VOID)
 
+            elif suffix.INC() is not None or suffix.DEC() is not None:
+                if not info.is_lvalue:
+                    self.error(suffix, "operador ++ ou -- exige variavel atribuivel.")
+
+                if info.is_const:
+                    self.error(suffix, "nao e permitido aplicar ++ ou -- em constante.")
+
+                if not info.type.is_numeric():
+                    self.error(suffix, "operador ++ ou -- exige operando numerico.")
+
+                # Pos-incremento/pos-decremento produz um valor, mas o resultado
+                # da expressao nao deve continuar sendo atribuivel.
+                info = ExprInfo(type=info.type, is_lvalue=False, is_const=False)
+
         return info
 
     def primary_info(self, ctx) -> ExprInfo:
@@ -937,6 +960,11 @@ class SemanticAnalyzer(JSSParserVisitor):
             if left == INT and right == INT:
                 return
             self.error(ctx, "operador **= exige operandos int.")
+
+        if op in {"&&=", "||="}:
+            if left == BOOL and right == BOOL:
+                return
+            self.error(ctx, f"operador {op} exige operandos bool.")
 
     def types_comparable(self, left: JssType, right: JssType) -> bool:
         if left.is_array or right.is_array:

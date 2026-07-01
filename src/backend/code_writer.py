@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 class CodeWriter:
     def __init__(self):
         self.lines: list[str] = []
@@ -29,5 +28,6 @@ class CodeWriter:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Sem BOM. Jasmin nao gosta de arquivo com caractere invisivel no inicio.
+        # sem BOM pois Jasmin nao lida bem com arquivos
+        # com caractere invisivel no inicio.
         path.write_text(self.text(), encoding="ascii")

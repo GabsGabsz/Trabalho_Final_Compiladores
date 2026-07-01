@@ -1,7 +1,6 @@
 from errors.compiler_error import CompilerError
 from semantic.symbols import Symbol
 
-
 class Scope:
     def __init__(self, name: str, parent: "Scope | None" = None):
         self.name = name
@@ -36,7 +35,6 @@ class Scope:
             current = current.parent
 
         return None
-
 
 class ScopeStack:
     def __init__(self):

@@ -6,14 +6,11 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-
 from JSSParserVisitor import JSSParserVisitor
-
 from backend.code_writer import CodeWriter
 from backend.label_manager import LabelManager
 
 PRIMITIVE_TYPES = {"int", "real", "str", "bool", "void"}
-
 
 @dataclass
 class VarInfo:
@@ -28,7 +25,6 @@ class VarInfo:
     def descriptor(self) -> str:
         return jasmin_descriptor(self.type_name)
 
-
 @dataclass
 class LValue:
     kind: str
@@ -36,7 +32,6 @@ class LValue:
     var: VarInfo | None = None
     owner_type: str | None = None
     field_name: str | None = None
-
 
 @dataclass
 class FunctionInfo:
@@ -50,7 +45,6 @@ class FunctionInfo:
         ret = jasmin_descriptor(self.return_type)
         return f"({params}){ret}"
 
-
 @dataclass
 class FieldInfo:
     name: str
@@ -61,7 +55,6 @@ class FieldInfo:
     @property
     def descriptor(self) -> str:
         return jasmin_descriptor(self.type_name)
-
 
 @dataclass
 class MethodInfo:
@@ -76,7 +69,6 @@ class MethodInfo:
         ret = jasmin_descriptor(self.return_type)
         return f"({params}){ret}"
 
-
 @dataclass
 class ConstructorInfo:
     param_types: list[str] = field(default_factory=list)
@@ -87,7 +79,6 @@ class ConstructorInfo:
         params = "".join(jasmin_descriptor(t) for t in self.param_types)
         return f"({params})V"
 
-
 @dataclass
 class ClassInfo:
     name: str
@@ -95,7 +86,6 @@ class ClassInfo:
     methods: dict[str, MethodInfo] = field(default_factory=dict)
     constructor: ConstructorInfo = field(default_factory=ConstructorInfo)
     ctx: object | None = None
-
 
 class MethodContext:
     def __init__(
@@ -130,7 +120,8 @@ class MethodContext:
 
         self.locals[name] = var
 
-        # double ocupa 2 slots; arrays e objetos sao referencias e ocupam 1 slot.
+        # double ocupa 2 slots
+        # arrays e objetos sao referencias e ocupam 1 slot.
         if type_name == "real":
             self.next_slot += 2
         else:
@@ -141,19 +132,11 @@ class MethodContext:
     def resolve_local(self, name: str) -> VarInfo | None:
         return self.locals.get(name)
 
-
-# ==========================================================
-# Descritores Jasmin/JVM
-# ==========================================================
-
-
 def is_array_type(type_name: str) -> bool:
     return type_name.endswith("[]")
 
-
 def array_element_type(type_name: str) -> str:
     return type_name[:-2]
-
 
 def is_reference_type(type_name: str) -> bool:
     return (
@@ -161,7 +144,6 @@ def is_reference_type(type_name: str) -> bool:
         or is_array_type(type_name)
         or type_name not in PRIMITIVE_TYPES
     )
-
 
 def jasmin_descriptor(type_name: str) -> str:
     if is_array_type(type_name):
@@ -180,7 +162,6 @@ def jasmin_descriptor(type_name: str) -> str:
 
     return f"L{type_name};"
 
-
 def jasmin_newarray_instruction(base_type: str) -> str:
     if base_type == "int":
         return "newarray int"
@@ -195,7 +176,6 @@ def jasmin_newarray_instruction(base_type: str) -> str:
 
     return f"anewarray {base_type}"
 
-
 def jasmin_array_load_instruction(base_type: str) -> str:
     if base_type in {"int", "bool"}:
         return "iaload"
@@ -203,14 +183,12 @@ def jasmin_array_load_instruction(base_type: str) -> str:
         return "daload"
     return "aaload"
 
-
 def jasmin_array_store_instruction(base_type: str) -> str:
     if base_type in {"int", "bool"}:
         return "iastore"
     if base_type == "real":
         return "dastore"
     return "aastore"
-
 
 class JasminGenerator(JSSParserVisitor):
     def __init__(self, class_name: str = "Main"):
@@ -235,16 +213,16 @@ class JasminGenerator(JSSParserVisitor):
         self.output_dir = output_path.parent
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Evita montar .j antigo de testes anteriores.
+        # evita montar .j antigo de testes anteriores
         for old_file in self.output_dir.glob("*.j"):
             old_file.unlink()
 
         self.collect_globals_functions_and_classes(tree)
 
-        # Primeiro gera as classes JSS separadas: Ponto.j, Pessoa.j etc.
+        # primeiro gera as classes JSS separadas: Ponto.j, Pessoa.j e etc
         self.emit_class_files(tree)
 
-        # Depois gera a classe Main com funcoes globais e main Java.
+        # depois gera a classe Main com funcoes globais e main Java
         self.writer = CodeWriter()
         self.emit_main_class_header()
         self.emit_main_fields()
@@ -255,19 +233,16 @@ class JasminGenerator(JSSParserVisitor):
         self.writer.save(output_path)
         return output_path
 
-    # ======================================================
-    # Coleta inicial
-    # ======================================================
-
     def collect_globals_functions_and_classes(self, program_ctx):
-        # Primeira passada: registra os nomes das classes para permitir tipos de objeto.
+        # primeira passada registra os nomes das classes para 
+        # permitir tipos de objeto.
         for top in program_ctx.topLevelDeclaration():
             class_ctx = top.classDeclaration()
             if class_ctx is not None:
                 name = class_ctx.ID().getText()
                 self.classes[name] = ClassInfo(name=name, ctx=class_ctx)
 
-        # Segunda passada: coleta membros de classes, globais e funcoes.
+        # segunda passada coleta membros de classes, globais e funcoes.
         for top in program_ctx.topLevelDeclaration():
             class_ctx = top.classDeclaration()
             stmt_ctx = top.statement()
@@ -307,7 +282,7 @@ class JasminGenerator(JSSParserVisitor):
                     param_types=param_types,
                 )
 
-    # Mantem compatibilidade com chamadas antigas, caso existam.
+    # mantem compatibilidade com chamadas antigas, caso existam 
     def collect_globals_and_functions(self, program_ctx):
         self.collect_globals_functions_and_classes(program_ctx)
 
@@ -385,16 +360,12 @@ class JasminGenerator(JSSParserVisitor):
             for param in parameter_list_ctx.parameter()
         ]
 
-    # ======================================================
-    # Classe Main
-    # ======================================================
-
     def emit_main_class_header(self):
         self.writer.emit(f".class public {self.class_name}")
         self.writer.emit(".super java/lang/Object")
         self.writer.emit()
 
-    # Mantem compatibilidade com o nome antigo.
+    # mantem compatibilidade com o nome antigo
     def emit_class_header(self):
         self.emit_main_class_header()
 
@@ -406,7 +377,7 @@ class JasminGenerator(JSSParserVisitor):
 
         self.writer.emit()
 
-    # Mantem compatibilidade com o nome antigo.
+    # mantem compatibilidade com o nome antigo
     def emit_fields(self):
         self.emit_main_fields()
 
@@ -420,7 +391,7 @@ class JasminGenerator(JSSParserVisitor):
         self.writer.emit(".end method")
         self.writer.emit()
 
-    # Mantem compatibilidade com o nome antigo.
+    # mantem compatibilidade com o nome antigo
     def emit_constructor(self):
         self.emit_main_constructor()
 
@@ -430,7 +401,7 @@ class JasminGenerator(JSSParserVisitor):
         self.writer.emit(".limit stack 300")
         self.writer.emit(".limit locals 300")
 
-        # Inicializa o Scanner: __scanner = new Scanner(System.in).useLocale(Locale.US)
+        # inicializa o Scanner: __scanner = new Scanner(System.in).useLocale(Locale.US)
         self.writer.emit("new java/util/Scanner")
         self.writer.emit("dup")
         self.writer.emit("getstatic java/lang/System/in Ljava/io/InputStream;")
@@ -475,9 +446,9 @@ class JasminGenerator(JSSParserVisitor):
 
             self.emit_store_var(var)
 
-        # Comandos soltos no nível superior (fora de qualquer função) rodam aqui,
+        # comandos soltos no nível superior (fora de qualquer função) rodam aqui,
         # sempre antes de qualquer método (inclusive main), tanto sintetizado
-        # quanto declarado pelo usuário no programa JSS.
+        # quanto declarado pelo usuário no programa JSS
         self.current_method = MethodContext("<clinit>", "void", start_slot=0)
 
         for top in program_ctx.topLevelDeclaration():
@@ -508,9 +479,9 @@ class JasminGenerator(JSSParserVisitor):
                     self.emit_function(func_ctx)
 
         if not found_main:
-            # Comandos soltos no nível superior já rodam em <clinit>
-            # (ver emit_static_initializer); aqui só falta o ponto de
-            # entrada Java exigido pela JVM.
+            # comandos soltos no nível superior já rodam em <clinit>
+            # (ver emit_static_initializer)
+            # aqui só falta o ponto de entrada Java exigido pela JVM.
             self.emit_empty_main()
 
     def emit_empty_main(self):
@@ -522,10 +493,6 @@ class JasminGenerator(JSSParserVisitor):
         self.writer.dedent()
         self.writer.emit(".end method")
         self.writer.emit()
-
-    # ======================================================
-    # Classes JSS
-    # ======================================================
 
     def emit_class_files(self, program_ctx):
         for top in program_ctx.topLevelDeclaration():
@@ -595,7 +562,6 @@ class JasminGenerator(JSSParserVisitor):
         self.writer.emit("aload_0")
         self.writer.emit("invokespecial java/lang/Object/<init>()V")
 
-        # Inicializa automaticamente atributos que sao vetores com tamanho fixo.
         for field_info in class_info.fields.values():
             if is_array_type(field_info.type_name) and field_info.array_sizes:
                 self.writer.emit("aload_0")
@@ -653,10 +619,6 @@ class JasminGenerator(JSSParserVisitor):
         self.writer.emit()
 
         self.current_method = None
-
-    # ======================================================
-    # Funcoes globais
-    # ======================================================
 
     def emit_java_main(self, func_ctx):
         self.current_method = MethodContext("main", "void", start_slot=1)
@@ -729,10 +691,6 @@ class JasminGenerator(JSSParserVisitor):
         else:
             self.writer.emit("aconst_null")
             self.writer.emit("areturn")
-
-    # ======================================================
-    # Blocos e comandos
-    # ======================================================
 
     def gen_block(self, block_ctx):
         for statement in block_ctx.statement():
@@ -909,10 +867,6 @@ class JasminGenerator(JSSParserVisitor):
         else:
             self.writer.emit("return")
 
-    # ======================================================
-    # console.log
-    # ======================================================
-
     def gen_console_log(self, ctx):
         argument_list = ctx.argumentList()
 
@@ -954,10 +908,6 @@ class JasminGenerator(JSSParserVisitor):
                 "invokevirtual java/io/PrintStream/print(Ljava/lang/Object;)V"
             )
 
-    # ======================================================
-    # input
-    # ======================================================
-
     def gen_input(self, ctx):
         input_list = ctx.inputArgumentList()
 
@@ -967,8 +917,8 @@ class JasminGenerator(JSSParserVisitor):
         for argument in input_list.inputArgument():
             target = self.resolve_lvalue(argument.postfixExpression())
 
-            # Para vetor e atributo, resolve_lvalue ja deixa arrayref/indice
-            # ou objectref na pilha antes de carregar o Scanner.
+            # para vetor e atributo, resolve_lvalue ja deixa arrayref/indice
+            # ou objectref na pilha antes de carregar o Scanner
             self.writer.emit(f"getstatic {self.class_name}/__scanner Ljava/util/Scanner;")
 
             if target.type_name == "int":
@@ -983,10 +933,6 @@ class JasminGenerator(JSSParserVisitor):
                 )
 
             self.emit_store_lvalue(target)
-
-    # ======================================================
-    # Expressoes
-    # ======================================================
 
     def gen_expression(self, ctx) -> str:
         name = type(ctx).__name__
@@ -1245,7 +1191,7 @@ class JasminGenerator(JSSParserVisitor):
                 "Pos-incremento/pos-decremento aceita apenas int ou real no back-end."
             )
 
-        # Carrega o valor antigo. Para vetor e atributo, resolve_lvalue ja deixou
+        # carrega o valor antigo. Para vetor e atributo, resolve_lvalue ja deixou
         # arrayref/indice ou objectref na pilha; guardamos apenas o valor antigo
         # em temporario, preservando a referencia necessaria para o store.
         self.emit_load_lvalue_value(target)
@@ -1267,8 +1213,8 @@ class JasminGenerator(JSSParserVisitor):
 
         self.emit_store_lvalue(target)
 
-        # Como pos-incremento/pos-decremento e uma expressao, deixa na pilha
-        # o valor antigo. Se for usado como comando isolado, gen_statement remove.
+        # como pos-incremento/pos-decremento e uma expressao, deixa na pilha
+        # o valor antigo. se for usado como comando isolado, gen_statement remove
         if target.type_name == "real":
             self.writer.emit(f"dload {temp_slot}")
         else:
@@ -1460,10 +1406,6 @@ class JasminGenerator(JSSParserVisitor):
             f"Cast {source} para {target} ainda nao suportado no back-end."
         )
 
-    # ======================================================
-    # Variaveis, atributos e vetores
-    # ======================================================
-
     def resolve_variable(self, name: str) -> VarInfo:
         if self.current_method is not None:
             local = self.current_method.resolve_local(name)
@@ -1479,12 +1421,12 @@ class JasminGenerator(JSSParserVisitor):
         primary = postfix_ctx.primaryExpression()
         suffixes = list(postfix_ctx.postfixSuffix())
 
-        # Em x++ ou x--, o ultimo sufixo nao faz parte do destino de atribuicao;
-        # ele apenas indica a operacao de incremento/decremento.
+        # em x++ ou x--, o ultimo sufixo nao faz parte do destino de atribuicao;
+        # ele apenas indica a operacao de incremento/decremento
         if suffixes and (suffixes[-1].INC() is not None or suffixes[-1].DEC() is not None):
             suffixes = suffixes[:-1]
 
-        # Variavel simples: x
+        # variavel simples: x
         if primary.ID() is not None and not suffixes:
             name = primary.ID().getText()
             var = self.resolve_variable(name)
@@ -1798,8 +1740,8 @@ class JasminGenerator(JSSParserVisitor):
         element_type = array_element_type(type_name)
         self.emit_new_array(element_type, sizes[0])
 
-        # Para vetores multidimensionais, aloca cada subvetor.
-        # Ex.: int[3][3] vira um array de 3 referencias para int[3].
+        # para vetores multidimensionais, aloca cada subvetor
+        # Ex: int[3][3] vira um array de 3 referencias para int[3]
         if len(sizes) > 1:
             for index in range(sizes[0]):
                 self.writer.emit("dup")
@@ -1847,10 +1789,6 @@ class JasminGenerator(JSSParserVisitor):
 
             self.writer.emit(jasmin_array_store_instruction(base_type))
 
-    # ======================================================
-    # Busca auxiliar na parse tree
-    # ======================================================
-
     def find_child_by_type_name(self, ctx, type_name: str):
         if type(ctx).__name__ == type_name:
             return ctx
@@ -1881,10 +1819,6 @@ class JasminGenerator(JSSParserVisitor):
             found_nodes.extend(self.find_children_by_type_name(child, type_name))
 
         return found_nodes
-
-    # ======================================================
-    # Comparacoes e auxiliares
-    # ======================================================
 
     def emit_comparison(self, left_type: str, right_type: str, op: str):
         true_label = self.labels.new("cmp_true")

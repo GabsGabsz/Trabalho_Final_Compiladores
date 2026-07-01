@@ -1,7 +1,6 @@
 import sys
 from pathlib import Path
 
-
 ROOT_DIR = Path(__file__).resolve().parents[1]
 SRC_DIR = ROOT_DIR / "src"
 GENERATED_DIR = ROOT_DIR / "generated"
@@ -12,13 +11,11 @@ if str(SRC_DIR) not in sys.path:
 if str(GENERATED_DIR) not in sys.path:
     sys.path.insert(0, str(GENERATED_DIR))
 
-
 from errors.compiler_error import CompilerError
 from frontend.lexical import LexicalAnalyzer
 from frontend.syntactic import SyntacticAnalyzer
 from semantic.analyzer import SemanticAnalyzer
 from backend.jasmin_generator import JasminGenerator
-
 
 def read_source_code(args: list[str]) -> str:
     """
@@ -44,7 +41,6 @@ def read_source_code(args: list[str]) -> str:
         return input_path.read_text(encoding="utf-8-sig")
 
     return sys.stdin.read().lstrip("\ufeff")
-
 
 def main() -> int:
     args = sys.argv[1:]
@@ -90,7 +86,6 @@ def main() -> int:
     except Exception as error:
         print(f"ERRO INTERNO: {error}")
         return 1
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 
-
 @dataclass(frozen=True)
 class JssType:
     name: str
@@ -46,7 +45,6 @@ class JssType:
     def is_null(self) -> bool:
         return not self.is_array and self.name == "null"
 
-
 INT = JssType("int")
 REAL = JssType("real")
 STR = JssType("str")
@@ -54,12 +52,10 @@ BOOL = JssType("bool")
 VOID = JssType("void")
 NULL = JssType("null")
 
-
 def numeric_result(left: JssType, right: JssType) -> JssType:
     if left.name == "real" or right.name == "real":
         return REAL
     return INT
-
 
 def can_assign(target: JssType, source: JssType, known_classes: set[str] | None = None) -> bool:
     known_classes = known_classes or set()
@@ -76,7 +72,6 @@ def can_assign(target: JssType, source: JssType, known_classes: set[str] | None 
         return True
 
     return False
-
 
 def can_cast(from_type: JssType, to_type: JssType) -> bool:
     if from_type.is_array or to_type.is_array:

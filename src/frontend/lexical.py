@@ -3,7 +3,6 @@ from antlr4 import InputStream, CommonTokenStream
 from JSSLexer import JSSLexer
 from errors.error_listener import JSSLexerErrorListener
 
-
 class LexicalAnalyzer:
     """
     Etapa de análise léxica.
@@ -20,8 +19,8 @@ class LexicalAnalyzer:
 
         token_stream = CommonTokenStream(lexer)
 
-        # Força o lexer a ler todos os tokens agora.
-        # Assim, erro léxico aparece antes do parser começar.
+        # força o lexer a ler todos os tokens agora
+        # assim erro léxico aparece antes do parser começar
         token_stream.fill()
         token_stream.seek(0)
 

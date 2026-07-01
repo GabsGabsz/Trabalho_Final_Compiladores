@@ -24,14 +24,12 @@ from semantic.types import (
     can_cast,
 )
 
-
 @dataclass
 class ExprInfo:
     type: JssType
     symbol: Symbol | None = None
     is_lvalue: bool = False
     is_const: bool = False
-
 
 class SemanticAnalyzer(JSSParserVisitor):
     def __init__(self):
@@ -41,10 +39,6 @@ class SemanticAnalyzer(JSSParserVisitor):
         self.current_function: Symbol | None = None
         self.current_class: Symbol | None = None
         self.known_classes: set[str] = set()
-
-    # ======================================================
-    # Utilidades
-    # ======================================================
 
     def analyze(self, tree):
         self.collect_global_declarations(tree)
@@ -84,10 +78,6 @@ class SemanticAnalyzer(JSSParserVisitor):
             is_const=is_const
         )
 
-    # ======================================================
-    # Coleta global: classes e funcoes antes da visita
-    # ======================================================
-
     def collect_global_declarations(self, program_ctx):
         # Primeiro registra classes.
         for top in program_ctx.topLevelDeclaration():
@@ -107,7 +97,6 @@ class SemanticAnalyzer(JSSParserVisitor):
                 self.scopes.global_scope.define(class_symbol)
                 self.known_classes.add(name)
 
-        # Depois registra funcoes.
         for top in program_ctx.topLevelDeclaration():
             func_ctx = top.functionDeclaration()
             if func_ctx is not None:
@@ -128,13 +117,11 @@ class SemanticAnalyzer(JSSParserVisitor):
 
                 self.scopes.global_scope.define(function_symbol)
 
-        # Registra variaveis globais declaradas em sentencas de topo.
         for top in program_ctx.topLevelDeclaration():
             stmt_ctx = top.statement()
             if stmt_ctx is not None and stmt_ctx.variableDeclaration() is not None:
                 self.declare_variable_declaration(stmt_ctx.variableDeclaration(), check_initializer=False)
 
-        # Por fim, completa informacoes internas das classes.
         for top in program_ctx.topLevelDeclaration():
             class_ctx = top.classDeclaration()
             if class_ctx is not None:
@@ -212,10 +199,6 @@ class SemanticAnalyzer(JSSParserVisitor):
         if not found_constructor:
             self.error(class_ctx, f"classe '{class_name}' deve possuir um constructor.")
 
-    # ======================================================
-    # Tipos
-    # ======================================================
-
     def type_from_type_ctx(self, ctx) -> JssType:
         base = ctx.baseType().getText()
 
@@ -235,9 +218,9 @@ class SemanticAnalyzer(JSSParserVisitor):
         if ctx.VOID() is not None:
             return VOID
 
-        # A especificacao (secao 4.4) proibe retorno de vetor; o proprio
+        # A especificacao (secao 4.4) proibe retorno de vetor; o
         # tests/prof/6_functions.jss, que declara "function int[5] ...",
-        # e um teste negativo e deve falhar aqui.
+        # falha aqui.
         return_type = self.type_from_type_ctx(ctx.type_())
         if return_type.is_array:
             self.error(ctx, "funcao ou metodo nao pode retornar vetor.")
@@ -263,10 +246,6 @@ class SemanticAnalyzer(JSSParserVisitor):
             params.append((name, typ))
 
         return params
-
-    # ======================================================
-    # Visitas principais
-    # ======================================================
 
     def visitProgram(self, ctx):
         for top in ctx.topLevelDeclaration():
@@ -478,10 +457,6 @@ class SemanticAnalyzer(JSSParserVisitor):
         elif ctx.expression() is not None:
             self.expression_info(ctx.expression())
 
-    # ======================================================
-    # Comandos
-    # ======================================================
-
     def visitIfStatement(self, ctx):
         condition_type = self.expression_info(ctx.expression()).type
 
@@ -593,10 +568,6 @@ class SemanticAnalyzer(JSSParserVisitor):
 
         for expr in ctx.argumentList().expression():
             self.expression_info(expr)
-
-    # ======================================================
-    # Expressoes
-    # ======================================================
 
     def expression_info(self, ctx) -> ExprInfo:
         name = type(ctx).__name__
@@ -846,9 +817,6 @@ class SemanticAnalyzer(JSSParserVisitor):
 
                 if not info.type.is_numeric():
                     self.error(suffix, "operador ++ ou -- exige operando numerico.")
-
-                # Pos-incremento/pos-decremento produz um valor, mas o resultado
-                # da expressao nao deve continuar sendo atribuivel.
                 info = ExprInfo(type=info.type, is_lvalue=False, is_const=False)
 
         return info

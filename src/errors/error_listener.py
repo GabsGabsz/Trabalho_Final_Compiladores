@@ -1,7 +1,5 @@
 from antlr4.error.ErrorListener import ErrorListener
-
 from errors.compiler_error import CompilerError
-
 
 class JSSLexerErrorListener(ErrorListener):
     """
@@ -15,7 +13,6 @@ class JSSLexerErrorListener(ErrorListener):
             column=column + 1,
             message=msg
         )
-
 
 class JSSParserErrorListener(ErrorListener):
     """

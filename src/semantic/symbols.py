@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 
 from semantic.types import JssType
 
-
 @dataclass
 class Symbol:
     name: str

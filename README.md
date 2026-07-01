@@ -61,10 +61,10 @@ Caso seja necessário regenerar os arquivos em `generated/`, execute:
 
 ## 4. Executar o front-end
 
-O compilador lê o programa JSS pela entrada padrão. Exemplo com um arquivo válido:
+O compilador recebe o caminho do arquivo `.jss` como argumento. Exemplo com um arquivo válido:
 
 ```powershell
-Get-Content -Raw tests\success\01_variaveis.jss | python main.py
+python main.py tests\success\01_variaveis.jss
 ```
 
 Saída esperada:
@@ -76,7 +76,7 @@ OK: programa valido.
 Exemplo com erro semântico:
 
 ```powershell
-Get-Content -Raw tests\errors\semantico_variavel_nao_declarada.jss | python main.py
+python main.py tests\errors\semantico_variavel_nao_declarada.jss
 ```
 
 Saída esperada:
@@ -90,7 +90,7 @@ ERRO SEMANTICO na linha ..., coluna ...: identificador 'x' nao declarado.
 Para gerar o código Jasmin:
 
 ```powershell
-Get-Content -Raw tests\backend\29_programa_completo.jss | python main.py --jasmin
+python main.py --jasmin tests\backend\29_programa_completo.jss
 ```
 
 Saída esperada:
@@ -154,13 +154,14 @@ python -m compileall src generated
 - Leitura pela entrada padrão e saída pela saída padrão.
 - Identificadores case-sensitive.
 - Variáveis e constantes com escopo global e local.
-- Funções, parâmetros, chamadas e recursão.
+- Funções, parâmetros (inclusive de tipos derivados, como vetores e objetos), chamadas e recursão.
 - Verificação de `main` sem parâmetros quando declarada.
-- Vetores com tamanho fixo e inicialização por lista.
+- Vetores com tamanho fixo e inicialização por lista, inclusive multidimensionais (`int[3][3]`).
 - Classes, atributos, constructor, métodos, objetos e `this`.
 - Verificação de constantes, inclusive objetos constantes.
 - Verificação de `break` apenas dentro de laços.
 - Verificação de tipos em `if`, `while`, `for`, `return`, `input`, operadores e casts.
+- `for` com declaração ou atribuições no cabeçalho (inclusive múltiplas atribuições separadas por vírgula), com inicialização, condição e atualização opcionais.
 - Verificação de que função ou método não pode retornar vetor (retorno de objeto é permitido).
 - Comandos soltos fora de qualquer função, no nível superior do arquivo.
 
@@ -248,13 +249,13 @@ Total: 142.0
 
 Para submissão, não é necessário incluir a pasta `.venv`, arquivos `__pycache__`, arquivos `.pyc` ou arquivos gerados dentro de `output/classes`.
 
-## Entrada por arquivo
+## Entrada pela entrada padrão (stdin)
 
-Além da entrada padrão, o compilador também aceita o caminho de um arquivo `.jss` como argumento de linha de comando:
+Além do caminho de arquivo como argumento, o compilador também aceita o programa pela entrada padrão, conforme pedido na especificação:
 
 ```powershell
-python main.py tests\prof\1_basics.jss
-python main.py --jasmin tests\prof\1_basics.jss
+Get-Content -Raw tests\prof\1_basics.jss | python main.py
+Get-Content -Raw tests\prof\1_basics.jss | python main.py --jasmin
 ```
 
-Esse modo facilita a execução conforme a especificação do trabalho e os testes fornecidos pelo professor.
+Os dois modos são equivalentes; o modo por arquivo é o mais prático no dia a dia.

@@ -40,7 +40,10 @@ $tests = @(
     @{ File = "tests\backend\32_bool_real.jss"; Expected = "false true" },
     @{ File = "tests\backend\33_curto_circuito.jss"; Expected = "A: 0 false`nB: 0 true" },
     @{ File = "tests\backend\34_potencia_composta.jss"; Expected = "X: 8" },
-    @{ File = "tests\backend\35_programa_complexo.jss"; Expected = "Logica ok`nTotal: 68 Media: 68.0`nFatorial de 5: 120`nChamadas recursivas: 5`nPotencia: 32`nZero como bool: false`nNome: Ana Idade: 30`nNova idade: 31`nObjeto nulo detectado" }
+    @{ File = "tests\backend\35_programa_complexo.jss"; Expected = "Logica ok`nTotal: 68 Media: 68.0`nFatorial de 5: 120`nChamadas recursivas: 5`nPotencia: 32`nZero como bool: false`nNome: Ana Idade: 30`nNova idade: 31`nObjeto nulo detectado" },
+
+    @{ File = "tests\backend\36_for_variantes.jss"; Expected = "Soma: 6`nVoltas: 5`nParada: 4" },
+    @{ File = "tests\backend\37_parametros_derivados.jss"; Expected = "Soma: 150`nDobro: 14" }
 )
 
 $failed = 0
@@ -52,7 +55,7 @@ Write-Host "=============================="
 foreach ($test in $tests) {
     Write-Host "`n[BACKEND] $($test.File)"
 
-    $compileOutput = Get-Content -Raw $test.File | python main.py --jasmin
+    $compileOutput = python main.py --jasmin $test.File
     Write-Host $compileOutput
 
     if (-not ($compileOutput -like "OK: codigo Jasmin gerado*")) {

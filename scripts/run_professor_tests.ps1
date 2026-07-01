@@ -9,10 +9,10 @@ $tests = @(
 )
 
 # 6_functions.jss declara "function int[5] criarSequencia(...)", ou seja, uma
-# funcao que retorna vetor. A especificacao (secao 4.4) proibe isso
-# explicitamente, entao o compilador rejeita esse arquivo por regra semantica.
-# Tratado aqui como caso de erro esperado, junto com 7_errors.jss e
-# 8_erros_funcao.jss (que ja vem comentados no proprio arquivo como
+# funcao que retorna vetor. A especificacao (secao 4.4) proibe isso e o
+# professor confirmou que este arquivo e um teste negativo, entao o compilador
+# deve rejeita-lo por regra semantica. Tratado como erro esperado, junto com
+# 7_errors.jss e 8_erros_funcao.jss (comentados no proprio arquivo como
 # "arquivo deve falhar na compilacao").
 $errorTests = @(
     "tests\prof\6_functions.jss",

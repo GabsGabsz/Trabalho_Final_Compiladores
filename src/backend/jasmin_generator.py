@@ -1918,6 +1918,15 @@ class JasminGenerator(JSSParserVisitor):
                 }[op]
                 self.writer.emit(f"{instruction} {true_label}")
 
+        elif is_reference_type(left_type) or is_reference_type(right_type):
+            if op not in {"==", "!="}:
+                raise NotImplementedError(
+                    f"operador '{op}' nao suportado no back-end para os tipos "
+                    f"'{left_type}' e '{right_type}'."
+                )
+            instruction = "if_acmpeq" if op == "==" else "if_acmpne"
+            self.writer.emit(f"{instruction} {true_label}")
+
         else:
             instruction = {
                 "==": "if_icmpeq",

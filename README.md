@@ -125,6 +125,12 @@ Testes do back-end:
 .\scripts\run_backend_tests.ps1
 ```
 
+Testes com os arquivos fornecidos pelo professor (`tests\prof`):
+
+```powershell
+.\scripts\run_professor_tests.ps1
+```
+
 Todos os testes:
 
 ```powershell
@@ -155,6 +161,8 @@ python -m compileall src generated
 - Verificação de constantes, inclusive objetos constantes.
 - Verificação de `break` apenas dentro de laços.
 - Verificação de tipos em `if`, `while`, `for`, `return`, `input`, operadores e casts.
+- Verificação de que função ou método não pode retornar vetor (retorno de objeto é permitido).
+- Comandos soltos fora de qualquer função, no nível superior do arquivo.
 
 ### Back-end
 
@@ -181,6 +189,8 @@ Recursos suportados no back-end:
 - Aritmética mista `int`/`real` com conversão implícita para `real`.
 - Concatenação de strings com `+`.
 - Curto-circuito em `&&` e `||`.
+- Comparação `==`/`!=` entre objetos, strings e `null` (comparação de referência da JVM).
+- Comandos soltos fora de função executados sempre antes de qualquer método, inclusive `main`.
 
 ## 8. Exemplo de programa JSS
 

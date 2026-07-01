@@ -39,7 +39,8 @@ $tests = @(
     @{ File = "tests\backend\31_input_multiplos.jss"; Input = "5`n2.5`nAna"; Expected = "Ana 5 2.5" },
     @{ File = "tests\backend\32_bool_real.jss"; Expected = "false true" },
     @{ File = "tests\backend\33_curto_circuito.jss"; Expected = "A: 0 false`nB: 0 true" },
-    @{ File = "tests\backend\34_potencia_composta.jss"; Expected = "X: 8" }
+    @{ File = "tests\backend\34_potencia_composta.jss"; Expected = "X: 8" },
+    @{ File = "tests\backend\35_programa_complexo.jss"; Expected = "Logica ok`nTotal: 68 Media: 68.0`nFatorial de 5: 120`nChamadas recursivas: 5`nPotencia: 32`nZero como bool: false`nNome: Ana Idade: 30`nNova idade: 31`nObjeto nulo detectado" }
 )
 
 $failed = 0

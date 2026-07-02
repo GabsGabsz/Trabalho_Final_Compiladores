@@ -16,17 +16,10 @@ from frontend.lexical import LexicalAnalyzer
 from frontend.syntactic import SyntacticAnalyzer
 from semantic.analyzer import SemanticAnalyzer
 from backend.jasmin_generator import JasminGenerator
+from scripts import assemble_jasmin, common as scripts_common, run_jasmin_class
 
 def read_source_code(args: list[str]) -> str:
-    """
-    Le o codigo-fonte JSS.
-
-    Formatos aceitos:
-    - python main.py arquivo.jss
-    - python main.py --jasmin arquivo.jss
-    - Get-Content -Raw arquivo.jss | python main.py
-    - Get-Content -Raw arquivo.jss | python main.py --jasmin
-    """
+    """Le o codigo-fonte JSS: por caminho de arquivo (args[0]) ou pela entrada padrao."""
     file_args = [arg for arg in args if not arg.startswith("--")]
 
     if file_args:
@@ -40,11 +33,17 @@ def read_source_code(args: list[str]) -> str:
 
         return input_path.read_text(encoding="utf-8-sig")
 
-    return sys.stdin.read().lstrip("\ufeff")
+    # Le os bytes crus e decodifica como utf-8-sig: no Windows, sys.stdin.read()
+    # usa a codepage legada do console (ex.: cp1252) por padrao, o que corrompe
+    # um BOM UTF-8 em vez de remove-lo do inicio do texto.
+    return sys.stdin.buffer.read().decode("utf-8-sig")
 
 def main() -> int:
     args = sys.argv[1:]
-    generate_jasmin = "--jasmin" in args
+    # --assemble implica --jasmin (precisa do .j para montar); --run implica --assemble.
+    do_run = "--run" in args
+    do_assemble = do_run or "--assemble" in args
+    generate_jasmin = do_assemble or "--jasmin" in args
 
     try:
         source_code = read_source_code(args)
@@ -62,12 +61,29 @@ def main() -> int:
         semantic_analyzer = SemanticAnalyzer()
         semantic_analyzer.analyze(tree)
 
-        if generate_jasmin:
-            generator = JasminGenerator()
-            output_path = generator.generate(tree, "output/Main.j")
-            print(f"OK: codigo Jasmin gerado em {output_path}.")
-        else:
+        if not generate_jasmin:
             print("OK: programa valido.")
+            return 0
+
+        generator = JasminGenerator()
+        output_path = generator.generate(tree, "output/Main.j")
+        print(f"OK: codigo Jasmin gerado em {output_path}.")
+        sys.stdout.flush()
+
+        if do_assemble:
+            scripts_common.log_implicit(
+                "--assemble/--run pedido: montando output/*.j em output/classes/*.class "
+                "via tools/jasmin.jar (equivalente a 'python -m src.scripts.assemble_jasmin')."
+            )
+            assemble_jasmin.assemble()
+
+        if do_run:
+            scripts_common.log_implicit(
+                "--run pedido: executando 'java -cp output/classes Main' "
+                "(equivalente a 'python -m src.scripts.run_jasmin_class')."
+            )
+            result = run_jasmin_class.run_class()
+            return result.returncode
 
         return 0
 
@@ -81,6 +97,10 @@ def main() -> int:
 
     except NotImplementedError as error:
         print(f"ERRO BACKEND: {error}")
+        return 1
+
+    except scripts_common.ScriptError as error:
+        print(f"ERRO: {error}")
         return 1
 
     except Exception as error:

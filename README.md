@@ -23,7 +23,8 @@ manter o comando de execução simples a partir da raiz do repositório.
 
 ## 1. Requisitos
 
-- Java JDK instalado e disponível no terminal pelo comando `java`.
+- Java JDK instalado e disponível no terminal pelo comando `java` (necessário para regenerar o parser via
+  ANTLR e para montar/executar o back-end Jasmin; a validação do front-end sozinha não precisa dele).
 - Python 3 instalado e disponível no terminal pelo comando `python`.
 - ANTLR 4.13.2, já incluído em `tools/antlr-4.13.2-complete.jar`.
 - Jasmin, já incluído em `tools/jasmin.jar`.

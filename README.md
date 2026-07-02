@@ -155,6 +155,14 @@ java -cp output/classes Main
 
 ## 6. Executar os testes
 
+Os casos de teste em `tests/success/`, `tests/errors/` e `tests/backend/` foram gerados com apoio de IA, a
+partir da especificação da linguagem (um arquivo por regra léxica, sintática ou semântica, e um por recurso
+do back-end). O motivo de usar IA nessa etapa foi conseguir cobertura sistemática e ampla, um caso por regra
+da especificação, em vez de escrever dezenas de arquivos `.jss` manualmente um a um. Cada teste gerado foi
+executado contra o compilador real (e, no caso dos testes de back-end, contra uma JVM real) para confirmar a
+saída esperada antes de ser aceito na suíte. Os arquivos em `tests/prof/` são a exceção: foram fornecidos
+pelo professor e não foram alterados.
+
 Todos os comandos abaixo funcionam sem alteração em Windows, Linux, macOS ou WSL.
 
 Testes do front-end:

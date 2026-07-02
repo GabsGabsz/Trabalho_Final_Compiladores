@@ -1,35 +1,39 @@
 
-## Execucao oficial solicitada pelo professor
+# Compilador JSS - Java Script Simplificado
 
-O ponto de entrada principal fica na raiz do projeto. Assim, a execucao pode ser feita diretamente com:
+Compilador para o JSS (Java Script Simplificado), uma linguagem de ensino com sintaxe inspirada em
+JavaScript e tipagem forte, desenvolvido como projeto final da disciplina de Compiladores (UFPI, 2026.1).
+O projeto implementa um front-end completo (análise léxica, sintática e semântica) e um back-end que gera
+bytecode executável para a JVM via Jasmin, usando ANTLR4 e Python.
 
-```powershell
+O ponto de entrada fica na raiz do repositório:
+
+```bash
 python main.py arquivo.jss
 ```
 
-Para gerar codigo Jasmin:
+Para gerar código Jasmin (back-end):
 
-```powershell
+```bash
 python main.py --jasmin arquivo.jss
 ```
 
-O arquivo `src/main.py` contem a implementacao real da linha de comando; o `main.py` da raiz apenas chama esse modulo para atender ao formato de execucao pedido.
-
-# Compilador JSS - Java Script Simplificado
-
-Projeto final da disciplina de Compiladores 2026.1. O projeto implementa um compilador para a linguagem Java Script Simplificado (JSS), com front-end e back-end usando ANTLR4, Python e Jasmin/JVM.
+A implementação da linha de comando fica em `src/main.py`; o `main.py` na raiz apenas a encaminha, para
+manter o comando de execução simples a partir da raiz do repositório.
 
 ## 1. Requisitos
 
 - Java JDK instalado e disponível no terminal pelo comando `java`.
 - Python 3 instalado e disponível no terminal pelo comando `python`.
-- PowerShell para executar os scripts `.ps1`.
 - ANTLR 4.13.2, já incluído em `tools/antlr-4.13.2-complete.jar`.
 - Jasmin, já incluído em `tools/jasmin.jar`.
 
+Nenhum shell específico é necessário: todos os scripts auxiliares (`src/scripts/`) são Python puro e
+funcionam da mesma forma em Windows, Linux, macOS ou WSL.
+
 Instale a dependência Python com:
 
-```powershell
+```bash
 python -m pip install -r requirements.txt
 ```
 
@@ -45,7 +49,7 @@ antlr4-python3-runtime==4.13.2
 grammar/       Gramáticas ANTLR do lexer e parser
 generated/     Arquivos Python gerados pelo ANTLR
 src/           Código-fonte do compilador
-scripts/       Scripts auxiliares de geração, testes e execução
+src/scripts/   Scripts auxiliares de geração, testes e execução (Python, multiplataforma)
 tests/         Programas JSS de sucesso, erro e back-end
 tools/         JARs do ANTLR e do Jasmin
 output/        Arquivos Jasmin e classes geradas durante a execução
@@ -55,16 +59,16 @@ output/        Arquivos Jasmin e classes geradas durante a execução
 
 Caso seja necessário regenerar os arquivos em `generated/`, execute:
 
-```powershell
-.\scripts\generate_parser.ps1
+```bash
+python -m src.scripts.generate_parser
 ```
 
 ## 4. Executar o front-end
 
 O compilador recebe o caminho do arquivo `.jss` como argumento. Exemplo com um arquivo válido:
 
-```powershell
-python main.py tests\success\01_variaveis.jss
+```bash
+python main.py tests/success/01_variaveis.jss
 ```
 
 Saída esperada:
@@ -75,8 +79,8 @@ OK: programa valido.
 
 Exemplo com erro semântico:
 
-```powershell
-python main.py tests\errors\semantico_variavel_nao_declarada.jss
+```bash
+python main.py tests/errors/semantico_variavel_nao_declarada.jss
 ```
 
 Saída esperada:
@@ -89,8 +93,8 @@ ERRO SEMANTICO na linha ..., coluna ...: identificador 'x' nao declarado.
 
 Para gerar o código Jasmin:
 
-```powershell
-python main.py --jasmin tests\backend\29_programa_completo.jss
+```bash
+python main.py --jasmin tests/backend/29_programa_completo.jss
 ```
 
 Saída esperada:
@@ -101,45 +105,111 @@ OK: codigo Jasmin gerado em output\Main.j.
 
 Para montar os arquivos `.j` em bytecode JVM:
 
-```powershell
-.\scripts\assemble_jasmin.ps1
+```bash
+python -m src.scripts.assemble_jasmin
 ```
 
 Para executar a classe principal:
 
-```powershell
-.\scripts\run_jasmin_class.ps1
+```bash
+python -m src.scripts.run_jasmin_class
+```
+
+### 5.1. Atalho: gerar, montar e executar em um só comando
+
+`main.py` aceita as flags `--assemble` (gera o Jasmin e já monta o bytecode) e `--run` (gera, monta e
+executa a classe `Main`), como alternativa aos três passos manuais acima. Sempre que uma dessas flags
+dispara uma etapa extra automaticamente, uma linha `[implicito] ...` é impressa na saída de erro (stderr)
+explicando o que foi feito. A saída padrão (stdout) continua imprimindo exatamente a mesma linha
+`OK: codigo Jasmin gerado em ...` de sempre, seguida da saída real do programa:
+
+```bash
+python main.py --run tests/backend/29_programa_completo.jss
+```
+
+### 5.2. Comandos Java diretos (sem os scripts Python)
+
+Os scripts em `src/scripts/` só automatizam passos repetitivos (criar pastas, montar múltiplos arquivos
+`.j` de uma vez, etc.). Eles não fazem nada que não possa ser feito digitando os comandos `java` abaixo
+diretamente.
+
+Regenerar o parser (equivalente a `python -m src.scripts.generate_parser`):
+
+```bash
+java -jar tools/antlr-4.13.2-complete.jar -Dlanguage=Python3 -visitor -listener -Xexact-output-dir -o generated grammar/JSSLexer.g4 grammar/JSSParser.g4
+```
+
+Montar os arquivos `.j` gerados em bytecode JVM (equivalente a `python -m src.scripts.assemble_jasmin`):
+
+```bash
+mkdir -p output/classes
+java -jar tools/jasmin.jar -d output/classes output/*.j
+```
+
+Executar a classe principal já montada (equivalente a `python -m src.scripts.run_jasmin_class`):
+
+```bash
+java -cp output/classes Main
 ```
 
 ## 6. Executar os testes
 
+Todos os comandos abaixo funcionam sem alteração em Windows, Linux, macOS ou WSL.
+
 Testes do front-end:
 
-```powershell
-.\scripts\run_tests.ps1
+```bash
+python -m src.scripts.run_tests
 ```
 
 Testes do back-end:
 
-```powershell
-.\scripts\run_backend_tests.ps1
+```bash
+python -m src.scripts.run_backend_tests
 ```
 
-Testes com os arquivos fornecidos pelo professor (`tests\prof`):
+Testes com os arquivos fornecidos pelo professor (`tests/prof`):
 
-```powershell
-.\scripts\run_professor_tests.ps1
+```bash
+python -m src.scripts.run_professor_tests
 ```
 
-Todos os testes:
+Todos os testes (front-end e depois back-end, parando no primeiro conjunto que falhar):
 
-```powershell
-.\scripts\run_all_tests.ps1
+```bash
+python -m src.scripts.run_all_tests
+```
+
+### 6.1. Executar cada teste do professor individualmente pelo back-end
+
+Também é possível rodar o pipeline completo do back-end (gerar Jasmin, montar e executar) para cada arquivo
+de `tests/prof` separadamente, usando o atalho `--run` (seção 5.1) em vez do script agregador. Os arquivos
+`1` a `5` são programas válidos e produzem um `.class` executável; os arquivos `6`, `7` e `8` são casos
+negativos fornecidos pelo professor (devem falhar já na geração do Jasmin, com `ERRO SEMANTICO`).
+
+```bash
+python main.py --run tests/prof/1_basics.jss
+python main.py --run tests/prof/2_operators.jss
+python main.py --run tests/prof/3_control_flow.jss
+python main.py --run tests/prof/5_classes.jss
+```
+
+```bash
+# 4_strings_casts.jss pede entrada: três números e depois dois nomes
+printf "1 2 3\nAna Bia\n" | python main.py --run tests/prof/4_strings_casts.jss
+```
+
+```bash
+# 6_functions.jss, 7_errors.jss e 8_erros_funcao.jss são casos negativos: cada um já
+# falha no próprio "--jasmin" (não chegam a montar/rodar), com ERRO SEMANTICO ou SINTATICO
+python main.py --jasmin tests/prof/6_functions.jss
+python main.py --jasmin tests/prof/7_errors.jss
+python main.py --jasmin tests/prof/8_erros_funcao.jss
 ```
 
 Também é possível verificar os arquivos Python com:
 
-```powershell
+```bash
 python -m compileall src generated
 ```
 
@@ -245,17 +315,28 @@ Numero: 11
 Total: 142.0
 ```
 
-## 9. Observação sobre a entrega
+## 9. Arquivos gerados e de ambiente
 
-Para submissão, não é necessário incluir a pasta `.venv`, arquivos `__pycache__`, arquivos `.pyc` ou arquivos gerados dentro de `output/classes`.
+A pasta `.venv/`, os diretórios `__pycache__/`, arquivos `.pyc` e o conteúdo gerado em `output/classes/`
+não fazem parte do código-fonte: são artefatos do ambiente virtual Python e do build, recriados a
+qualquer momento a partir dos comandos das seções acima.
 
 ## Entrada pela entrada padrão (stdin)
 
-Além do caminho de arquivo como argumento, o compilador também aceita o programa pela entrada padrão, conforme pedido na especificação:
+Além do caminho de arquivo como argumento, o compilador também aceita o programa pela entrada padrão
+(stdin), conforme a especificação da linguagem. Isso também é útil para compor com outras ferramentas ou
+pipelines. A sintaxe de redirecionamento é a única parte que muda por shell:
+
+```bash
+# Bash/zsh (Linux, macOS, WSL)
+python main.py < tests/prof/1_basics.jss
+python main.py --jasmin < tests/prof/1_basics.jss
+```
 
 ```powershell
+# PowerShell (Windows)
 Get-Content -Raw tests\prof\1_basics.jss | python main.py
 Get-Content -Raw tests\prof\1_basics.jss | python main.py --jasmin
 ```
 
-Os dois modos são equivalentes; o modo por arquivo é o mais prático no dia a dia.
+Os dois modos (arquivo ou stdin) são equivalentes; o modo por arquivo é o mais prático no dia a dia.
